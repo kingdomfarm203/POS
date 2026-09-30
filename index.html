@@ -347,7 +347,7 @@ label.f{display:block;font-size:14px;color:var(--mu);margin-bottom:10px}
 <datalist id="custList"></datalist>
 
 <script>
-const UI_VERSION='2026.09.30-5';
+const UI_VERSION='2026.10.01-1';
 const S={settings:{},products:[],customers:[],shift:null,suppliers:[],page:'dashboard',cart:[],posMethod:'CASH',posCat:'',posQ:'',posCats:[],charts:{},stockTab:'overview'};
 const MTH={CASH:'เงินสด',TRANSFER:'โอน',CREDIT:'เครดิต',UNPAID:'ค้างจ่าย',SPLIT:'แยกจ่าย'};
 const MC={CASH:'#16a34a',TRANSFER:'#2563eb',CREDIT:'#f59e0b',UNPAID:'#ef4444',SPLIT:'#7c3aed'};
@@ -436,7 +436,7 @@ function longDate(d){d=d||new Date();return 'วัน'+TD[d.getDay()]+'ที�
 function list(s){return String(s||'').split(',').map(x=>x.trim()).filter(Boolean);}
 function opts(map,sel){return Object.keys(map).map(k=>`<option value="${k}" ${k===sel?'selected':''}>${map[k]}</option>`).join('');}
 function optsArr(arr,sel){return arr.map(k=>`<option ${k===sel?'selected':''}>${esc(k)}</option>`).join('');}
-function img(p,sz){sz=sz||28;const im=String((p&&p.image)||'');if(/^https?:/.test(im))return `<img src="${esc(im)}" alt="">`;return `<span class="ph">${ico('image',Math.max(14,Math.round(sz*.7)))}</span>`;}
+function img(p,sz){sz=sz||28;const im=String((p&&p.image)||'');if(/^https?:/.test(im))return `<img src="${esc(im)}" alt="" loading="lazy" decoding="async">`;return `<span class="ph">${ico('image',Math.max(14,Math.round(sz*.7)))}</span>`;}
 function imgBox(p,w,h,sz){return `<span class="imgbox" style="width:${w}px;height:${h||w}px">${img(p,sz||Math.round(w*.6))}</span>`;}
 function prod(id){return S.products.find(p=>p.id===id);}
 function stBadge(q,min){q=num(q);min=num(min);if(q<=0)return '<span class="b b-bad">หมด</span>';if(min>0&&q<min)return '<span class="b b-warn">ใกล้หมด</span>';return '<span class="b b-ok">พอใช้</span>';}
@@ -455,10 +455,13 @@ function loading(on){_ld=Math.max(0,_ld+(on?1:-1));$('#loading').style.display=_
 function call(action,payload,quiet){
   const pl=Object.assign({},payload||{});
   if(authOk())pl._pin=S.auth.pin;
+  if(NO_WB.indexOf(action)<0)pl._wb=1;
   if(!quiet)loading(true);
   return new Promise((res,rej)=>{
     google.script.run
-      .withSuccessHandler(r=>{if(!quiet)loading(false);if(pl._pin&&S.auth)S.auth.at=Date.now();res(r);})
+      .withSuccessHandler(r=>{if(!quiet)loading(false);if(pl._pin&&S.auth)S.auth.at=Date.now();
+        if(r&&r.__wb){Object.assign(S,r.base);S._baseAt=Date.now();S._baseKey=pl._pin||'';r=r.res;}
+        res(r);})
       .withFailureHandler(e=>{
         if(!quiet)loading(false);
         const m=(e&&e.message)||String(e);
@@ -570,10 +573,16 @@ async function boot(){
   $('#view').innerHTML='<div class="card empty">กำลังเชื่อมต่อเซิร์ฟเวอร์...</div>';
   if(!window.google||!google.script||!google.script.run){window.__bootErr('ไม่พบการเชื่อมต่อเซิร์ฟเวอร์ — เปิดผ่านลิงก์เว็บแอป (…/exec) หรือถ้าเปิดจาก GitHub ให้ใส่ลิงก์ /exec ที่บรรทัด window.API_URL ด้านบนของไฟล์');return;}
   const slow=setTimeout(()=>{if(!window.__booted)$('#view').innerHTML='<div class="card empty">กำลังเชื่อมต่อเซิร์ฟเวอร์... (นานกว่าปกติ)<div class="hint" style="margin-top:8px">ถ้าเกิน 1 นาที: ลองเปิดในหน้าต่างไม่ระบุตัวตน (Ctrl+Shift+N) หรือล็อกเอาต์ Gmail บัญชีอื่นในเบราว์เซอร์นี้</div></div>';},20000);
+  S._dashP=call('getDashboard',{date:today()},true);S._dashP.catch(()=>{});
   try{const r=await call('bootstrap');window.__booted=true;clearTimeout(slow);Object.assign(S,r);applyBrand();go('dashboard');}
   catch(e){clearTimeout(slow);window.__bootErr((e&&e.message)||e||'เรียกข้อมูลจากเซิร์ฟเวอร์ไม่สำเร็จ');}
 }
-async function reloadBase(){try{const r=await call('bootstrap',{},true);Object.assign(S,r);applyBrand();}catch(e){}}
+const NO_WB=['saveCountDraft','uploadCountPhoto','uploadImage','bootstrap','verifyPin'];
+async function reloadBase(){
+  const key=authOk()?S.auth.pin:'';
+  if(S._baseAt&&Date.now()-S._baseAt<8000&&S._baseKey===key){S._baseAt=0;applyBrand();return;}
+  try{const r=await call('bootstrap',{},true);Object.assign(S,r);applyBrand();}catch(e){}
+}
 async function refreshAll(){await reloadBase();render();}
 function go(p){if(S.csDirty)flushCount();S.page=p;render();toggleSide(false);window.scrollTo(0,0);}
 function render(){
@@ -587,7 +596,8 @@ function render(){
 }
 
 async function pgDashboard(){
-  const d=await call('getDashboard',{date:today()});
+  let d;const pre=S._dashP;S._dashP=null;
+  try{d=pre?await pre:await call('getDashboard',{date:today()});}catch(e){d=await call('getDashboard',{date:today()});}
   if(S.page!=='dashboard')return;
   const t=d.today, pct=d.yTotal>0?(t.total-d.yTotal)/d.yTotal*100:null;
   const kpi=(lab,val,sub,col,ic,main)=>`<div class="card kpi"><div class="ki" style="background:${col}">${ico(ic,22)}</div><div><div class="kl">${lab}</div><div class="kv" style="color:${main?'var(--tx)':col}">${fm(val)}</div><div class="ks">${sub}</div></div></div>`;
@@ -1225,14 +1235,23 @@ function denLines(json){
   const ks=DEN.filter(x=>o[x]);if(!ks.length)return '';
   return ks.map(x=>`<div class="sum-l"><span>${x>=20?'ธนบัตร':'เหรียญ'} ${fm(x,0)} × ${o[x]}</span><span>${fm(x*o[x],0)}</span></div>`).join('');
 }
-async function pgShift(){
-  const res=await Promise.all([call('getShift',{}),call('listShifts',{from:addD(today(),-30),to:today()},true)]);
+async function pgShift(fast){
+  const wantOwner0=!S.settings.hasPin||pinValid();
+  const pre=!fast&&S.shift&&!S.csDirty?call('getCountSheet',{},true).catch(()=>null):null;
+  const res=fast&&S._shRes&&Date.now()-S._shRes.at<60000?S._shRes.r:await Promise.all([call('getShift',{}),call('listShifts',{from:addD(today(),-30),to:today()},true)]);
+  S._shRes={r:res,at:Date.now()};
   if(S.page!=='shift')return;
   const cur=res[0],hist=res[1];
   const pend=!cur&&hist.find(x=>x.status==='PENDING');
   S.pendingShift=pend||null;updShift();
   const wantOwner=!S.settings.hasPin||pinValid();
-  if(cur&&(!S.cs||S.cs.shiftId!==cur.shift.shiftId||!S.csDirty||!!S.cs.owner!==wantOwner)){await flushCount();try{S.cs=await call('getCountSheet',{},true);S.cd=S.cs.draft||{};}catch(e){S.cs={shiftId:cur.shift.shiftId,products:[],draft:{}};S.cd={};}}
+  const csOk=S.cs&&S.cs.shiftId===(cur&&cur.shift.shiftId)&&!!S.cs.owner===wantOwner;
+  if(cur&&!(fast&&csOk)&&(!S.cs||S.cs.shiftId!==cur.shift.shiftId||!S.csDirty||!!S.cs.owner!==wantOwner)){
+    let got=null;
+    if(pre&&!S.csDirty&&wantOwner0===wantOwner){got=await pre;if(got&&got.shiftId!==cur.shift.shiftId)got=null;}
+    if(!got){await flushCount();try{got=await call('getCountSheet',{},true);}catch(e){got=null;}}
+    if(got){S.cs=got;S.cd=S.cs.draft||{};}else{S.cs={shiftId:cur.shift.shiftId,products:[],draft:{}};S.cd={};}
+  }
   if(!cur){S.cs=null;S.cd={};S.shTab='money';}
   const users=S.users||[];
   const whoHTML=(k,label,sel)=>users.length?`<div class="row"><label class="f">${label}<select id="${k}U">${users.map(u=>`<option value="${u.id}" ${u.id===sel?'selected':''}>${esc(u.name)}${u.role==='OWNER'?' (เจ้าของ)':''}</option>`).join('')}</select></label><label class="f">รหัสของคนนี้<input id="${k}P" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></label></div>`
@@ -1375,7 +1394,7 @@ function cntStat(){const P=(S.cs&&S.cs.products)||[];return {n:P.length,d:P.filt
 function cntBadge(){const c=cntStat();return c.n?`<span class="b ${c.d===c.n?'b-ok':'b-warn'}">${c.d}/${c.n}</span>`:'';}
 function cntLine(){const c=cntStat();if(!c.n)return '';
   return `<div class="sum-l" style="background:${c.d===c.n?'#f0fdf4':'#fef3c7'};border-radius:10px;padding:10px 12px;margin-bottom:10px"><span>${ico('box',16)} เช็คของ: นับแล้ว ${c.d}/${c.n} รายการ</span>${c.d===c.n?'<b style="color:var(--g6)">ครบแล้ว</b>':`<a onclick="swShTab('stock')" style="color:var(--blue);cursor:pointer;font-weight:600">ไปนับของ ›</a>`}</div>`;}
-async function swShTab(t){await flushCount();S.shTab=t;pgShift();}
+async function swShTab(t){await flushCount();S.shTab=t;pgShift(true);}
 function countPanelHTML(){
   const P=S.cs.products;
   if(!P.length)return `<div class="card empty">ยังไม่ได้ตั้งค่าสินค้าที่ต้องนับตอนปิดกะ<div class="hint" style="margin-top:6px">เจ้าของตั้งได้ที่ ตั้งค่า → การนับสต็อก</div></div>`;
