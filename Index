@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>
-window.API_URL=https://script.google.com/macros/s/AKfycbzVlNzERipYOBizYXjYaM7aKD5KNg5f1czRcG8rX6BYCLjWayzD6vC0TVySgSrjf8Ri/exec';
+window.API_URL='https://script.google.com/macros/s/AKfycbzVlNzERipYOBizYXjYaM7aKD5KNg5f1czRcG8rX6BYCLjWayzD6vC0TVySgSrjf8Ri/exec';
 </script>
 <script>
 (function(){
