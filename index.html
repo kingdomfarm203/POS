@@ -1,9 +1,15 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-
+<base target="_top">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link id="favIco" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e3a27'/%3E%3Ctext x='32' y='43' font-size='30' text-anchor='middle' fill='%23f5b82e' font-family='sans-serif' font-weight='700'%3EPOS%3C/text%3E%3C/svg%3E">
+<link id="touchIco" rel="apple-touch-icon" href="">
+<meta name="theme-color" content="#0e3a27">
+<script>
+(function(){try{var u=localStorage.getItem('shopLogo');if(u){document.getElementById('favIco').href=u;document.getElementById('touchIco').href=u;}var t=localStorage.getItem('shopTitle');if(t)document.title=t;}catch(e){}})();
+</script>
 <script>
 window.API_URL='https://script.google.com/macros/s/AKfycbzVlNzERipYOBizYXjYaM7aKD5KNg5f1czRcG8rX6BYCLjWayzD6vC0TVySgSrjf8Ri/exec';
 </script>
@@ -341,7 +347,7 @@ label.f{display:block;font-size:14px;color:var(--mu);margin-bottom:10px}
 <datalist id="custList"></datalist>
 
 <script>
-const UI_VERSION='2026.09.30-4';
+const UI_VERSION='2026.09.30-5';
 const S={settings:{},products:[],customers:[],shift:null,suppliers:[],page:'dashboard',cart:[],posMethod:'CASH',posCat:'',posQ:'',posCats:[],charts:{},stockTab:'overview'};
 const MTH={CASH:'เงินสด',TRANSFER:'โอน',CREDIT:'เครดิต',UNPAID:'ค้างจ่าย',SPLIT:'แยกจ่าย'};
 const MC={CASH:'#16a34a',TRANSFER:'#2563eb',CREDIT:'#f59e0b',UNPAID:'#ef4444',SPLIT:'#7c3aed'};
@@ -532,11 +538,22 @@ function buildNav(){
   $('#menuBtn').innerHTML=ico('menu');$('#refBtn').innerHTML=ico('refresh',18);
   $('#avIco').innerHTML=ico('staff',18);$('#mClose').innerHTML=X();$('#pinClose').innerHTML=X();$('#pinTitle').innerHTML=ico('lock',18)+' รหัสผู้ดูแล';
 }
+function setFavicon(url){
+  const f=$('#favIco'),t=$('#touchIco');if(!f)return;
+  if(!url){try{localStorage.removeItem('shopLogo');}catch(e){}return;}
+  const img=new Image();img.crossOrigin='anonymous';
+  img.onload=()=>{let u=url;try{const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),m=Math.min(img.width,img.height);x.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,128,128);u=c.toDataURL('image/png');}catch(e){}
+    f.href=u;if(t)t.href=u;try{localStorage.setItem('shopLogo',u);}catch(e){}};
+  img.onerror=()=>{f.href=url;if(t)t.href=url;};
+  img.src=url;
+}
 function applyBrand(){
   const st=S.settings;
   $('#logo').innerHTML=st.logoUrl?`<img src="${esc(st.logoUrl)}" alt="logo">`:`<div class="l1">อาหาร<span>ป่า</span></div><div class="l2">ตลาดไท</div>`;
   $('#branchPill').innerHTML=ico('pin',15)+' '+esc(st.branch||'');
   document.title=(st.shopName||'')+' | ระบบหลังร้าน';
+  setFavicon(st.logoUrl);
+  try{localStorage.setItem('shopTitle',document.title);}catch(e){}
   updShift();updLock();
   $('#custList').innerHTML=S.customers.map(c=>`<option value="${esc(c.name)}">`).join('');
 }
